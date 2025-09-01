@@ -22,7 +22,6 @@ export class AuthService {
   async validateUser(email: string, password: string): Promise<any> {
     const user = await this.prisma.user.findUnique({
       where: { email },
-      include: { role: true },
     });
 
     if (!user) return null;
@@ -67,7 +66,7 @@ export class AuthService {
     const payload = {
       email: user.email,
       sub: user.id,
-      role: user.role.name,
+      role: user.role,
     };
 
     return {
@@ -76,7 +75,7 @@ export class AuthService {
         id: user.id,
         name: user.name,
         email: user.email,
-        role: user.role.name,
+        role: user.role,
       },
     };
   }
@@ -115,7 +114,6 @@ export class AuthService {
   async validateOtp(email: string, otp: string) {
     const user = await this.prisma.user.findUnique({
       where: { email },
-      include: { role: true },
     });
 
     if (!user) throw new UnauthorizedException('Invalid credentials');

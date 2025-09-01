@@ -6,6 +6,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { UserRole } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 
 @Injectable()
@@ -13,35 +14,18 @@ export class UsersService {
   constructor(private readonly prisma: PrismaService) {}
 
   async create(createUserDto: CreateUserDto) {
-    const {
-      email,
-      password,
-      role: roleName,
-      priority: inputPriority,
-    } = createUserDto;
+    const { email, password, role } = createUserDto;
 
     const existingUser = await this.prisma.user.findUnique({
       where: { email },
     });
     if (existingUser) throw new ConflictException('Email already in use');
 
-    const role = await this.prisma.role.findUnique({
-      where: { name: roleName },
-    });
-    if (!role) {
+    // Validate role enum
+    if (role && !Object.values(UserRole).includes(role as UserRole)) {
       throw new ConflictException(
-        `Invalid role. Available roles: 'admin', 'staff', 'customer'`,
+        `Invalid role. Available roles: ${Object.values(UserRole).join(', ')}`,
       );
-    }
-
-    delete createUserDto.role;
-
-    if (inputPriority && role.name === 'staff') {
-      const totalStaff = await this.prisma.user.count({
-        where: { roleId: role.id },
-      });
-      const finalPriority = Math.min(inputPriority, totalStaff + 1);
-      createUserDto.priority = finalPriority;
     }
 
     const hashedPassword = password ? await bcrypt.hash(password, 10) : null;
@@ -50,9 +34,8 @@ export class UsersService {
       data: {
         ...createUserDto,
         password: hashedPassword,
-        role: { connect: { id: role.id } },
+        role: (role as UserRole) || UserRole.CLIENT,
       },
-      include: { role: true },
     });
 
     const { password: _, ...result } = user;
@@ -67,7 +50,6 @@ export class UsersService {
         email: true,
         phone: true,
         status: true,
-        roleId: true,
         role: true,
         createdAt: true,
         updatedAt: true,
@@ -77,14 +59,13 @@ export class UsersService {
 
   async findByRole(roleName: string) {
     return this.prisma.user.findMany({
-      where: { role: { name: roleName } },
+      where: { role: roleName as UserRole },
       select: {
         id: true,
         name: true,
         email: true,
         phone: true,
         status: true,
-        roleId: true,
         role: true,
         createdAt: true,
         updatedAt: true,
@@ -93,9 +74,10 @@ export class UsersService {
   }
 
   async findallroles() {
-    return this.prisma.role.findMany({
-      select: { id: true, name: true },
-    });
+    return Object.values(UserRole).map((role) => ({
+      id: role,
+      name: role,
+    }));
   }
 
   async findOne(id: string) {
@@ -107,7 +89,6 @@ export class UsersService {
         email: true,
         phone: true,
         status: true,
-        roleId: true,
         role: true,
         createdAt: true,
         updatedAt: true,
@@ -121,7 +102,6 @@ export class UsersService {
   async findByEmail(email: string) {
     return this.prisma.user.findUnique({
       where: { email },
-      include: { role: true },
     });
   }
 
@@ -135,24 +115,17 @@ export class UsersService {
     }
 
     if (updateUserDto.role) {
-      const role = await this.prisma.role.findUnique({
-        where: { name: updateUserDto.role },
-      });
-
-      if (!role) {
+      if (!Object.values(UserRole).includes(updateUserDto.role as UserRole)) {
         throw new ConflictException(
-          `Invalid role. Available roles: 'admin', 'staff', 'customer'`,
+          `Invalid role. Available roles: ${Object.values(UserRole).join(', ')}`,
         );
       }
-
-      updateData.roleId = role.id;
-      delete updateData.role;
+      updateData.role = updateUserDto.role as UserRole;
     }
 
     const updatedUser = await this.prisma.user.update({
       where: { id },
       data: updateData,
-      include: { role: true },
     });
 
     const { password: _, ...result } = updatedUser;

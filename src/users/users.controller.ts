@@ -18,6 +18,7 @@ import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard';
 import { RolesGuard } from 'src/common/guards/roles.guard';
 import { Roles } from 'src/common/decorators/roles.decorator';
 import { Public } from 'src/common/decorators/public.decorator';
+import { UserRole } from 'src/common/enums/user-roles.enum';
 
 @Controller('users')
 @UseGuards(JwtAuthGuard)
@@ -29,7 +30,7 @@ export class UsersController {
 
   @Post()
   @UseGuards(RolesGuard)
-  @Roles('admin')
+  @Roles(UserRole.SUPER_ADMIN)
   async create(@Body() createUserDto: CreateUserDto) {
     const user = await this.usersService.create(createUserDto);
     return this.responseService.successResponse(
@@ -40,7 +41,7 @@ export class UsersController {
 
   @Get()
   @UseGuards(RolesGuard)
-  @Roles('admin')
+  @Roles(UserRole.SUPER_ADMIN)
   async findAll(@Query('role') role?: string) {
     if (role) {
       return this.usersService.findByRole(role);
@@ -56,12 +57,12 @@ export class UsersController {
     return this.responseService.successResponse('Roles Found', roles);
   }
 
-  @Get('staff')
+  @Get('clients')
   @UseGuards(RolesGuard)
-  @Roles('admin')
-  async findAllStaff() {
-    const staff = await this.usersService.findByRole('staff');
-    return this.responseService.successResponse('Staff Found', staff);
+  @Roles(UserRole.SUPER_ADMIN)
+  async findAllClients() {
+    const clients = await this.usersService.findByRole('CLIENT');
+    return this.responseService.successResponse('Clients Found', clients);
   }
 
   @Get('profile')
@@ -72,7 +73,7 @@ export class UsersController {
 
   @Get(':id')
   @UseGuards(RolesGuard)
-  @Roles('admin')
+  @Roles(UserRole.SUPER_ADMIN)
   async findOne(@Param('id') id: string) {
     return this.usersService.findOne(id);
   }
@@ -84,14 +85,14 @@ export class UsersController {
 
   @Patch(':id')
   @UseGuards(RolesGuard)
-  @Roles('admin')
+  @Roles(UserRole.SUPER_ADMIN)
   async update(@Param('id') id: string, @Body() updateUserDto: UpdateUserDto) {
     return this.usersService.update(id, updateUserDto);
   }
 
   @Delete(':id')
   @UseGuards(RolesGuard)
-  @Roles('admin')
+  @Roles(UserRole.SUPER_ADMIN)
   async remove(@Param('id') id: string) {
     return this.usersService.remove(id);
   }

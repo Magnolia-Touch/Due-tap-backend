@@ -6,6 +6,15 @@ import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { ResponseModule } from './response/response.module';
 import { ScheduleModule } from '@nestjs/schedule';
+import { SuperAdminModule } from './super-admin/super-admin.module';
+import { ClientsModule } from './clients/clients.module';
+import { TemplatesModule } from './templates/templates.module';
+import { SubscriptionsModule } from './subscriptions/subscriptions.module';
+import { AnalyticsModule } from './analytics/analytics.module';
+import { SettingsModule } from './settings/settings.module';
+import { PaymentsModule } from './payments/payments.module';
+import { EndUsersModule } from './end-users/end-users.module';
+import { NotificationsModule } from './notifications/notifications.module';
 
 @Module({
   imports: [
@@ -18,6 +27,15 @@ import { ScheduleModule } from '@nestjs/schedule';
     UsersModule,
     ResponseModule,
     ScheduleModule.forRoot(),
+    SuperAdminModule,
+    ClientsModule,
+    TemplatesModule,
+    SubscriptionsModule,
+    AnalyticsModule,
+    SettingsModule,
+    PaymentsModule,
+    EndUsersModule,
+    NotificationsModule,
   ],
 })
 export class AppModule {}
