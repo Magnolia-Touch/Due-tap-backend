@@ -33,12 +33,12 @@ export class SubscriptionsController {
   constructor(
     private readonly subscriptionsService: SubscriptionsService,
     private readonly clientsService: ClientsService,
-  ) {}
+  ) { }
 
   @Get()
   @ApiOperation({ summary: 'Get all subscriptions for client' })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiResponse({
+    status: 200,
     description: 'Subscriptions retrieved successfully',
     type: [SubscriptionResponseDto],
   })
@@ -49,8 +49,8 @@ export class SubscriptionsController {
 
   @Get(':id')
   @ApiOperation({ summary: 'Get subscription by ID' })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiResponse({
+    status: 200,
     description: 'Subscription retrieved successfully',
     type: SubscriptionResponseDto,
   })
@@ -61,8 +61,8 @@ export class SubscriptionsController {
 
   @Post()
   @ApiOperation({ summary: 'Create a new subscription' })
-  @ApiResponse({ 
-    status: 201, 
+  @ApiResponse({
+    status: 201,
     description: 'Subscription created successfully',
     type: SubscriptionResponseDto,
   })
@@ -76,8 +76,8 @@ export class SubscriptionsController {
 
   @Put(':id')
   @ApiOperation({ summary: 'Update a subscription' })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiResponse({
+    status: 200,
     description: 'Subscription updated successfully',
     type: SubscriptionResponseDto,
   })

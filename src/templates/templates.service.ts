@@ -13,7 +13,7 @@ import {
 
 @Injectable()
 export class TemplatesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) { }
 
   async getTemplates(
     clientId: string,
@@ -57,6 +57,7 @@ export class TemplatesService {
           name: template.name,
           title: template.title,
           body: template.body,
+          paymentLink: template.paymentLink,
           recurringDuration: template.recurringDuration,
           durationUnit: template.durationUnit,
           notificationMethod: template.notificationMethod,
@@ -107,6 +108,7 @@ export class TemplatesService {
       name: template.name,
       title: template.title,
       body: template.body,
+      paymentLink: template.paymentLink,
       recurringDuration: template.recurringDuration,
       durationUnit: template.durationUnit,
       notificationMethod: template.notificationMethod,
@@ -136,6 +138,7 @@ export class TemplatesService {
       name: template.name,
       title: template.title,
       body: template.body,
+      paymentLink: template.paymentLink,
       recurringDuration: template.recurringDuration,
       durationUnit: template.durationUnit,
       notificationMethod: template.notificationMethod,

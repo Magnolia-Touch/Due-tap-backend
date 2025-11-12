@@ -38,6 +38,14 @@ export class CreateTemplateDto {
   body: string;
 
   @ApiProperty({
+    description: 'Payment link',
+    example: 'Payment Link',
+  })
+  @IsString()
+  @IsOptional()
+  paymentLink: string;
+
+  @ApiProperty({
     description: 'Recurring duration number',
     example: 1,
     minimum: 1,
@@ -91,13 +99,14 @@ export class CreateTemplateDto {
   isActive?: boolean = true;
 }
 
-export class UpdateTemplateDto extends PartialType(CreateTemplateDto) {}
+export class UpdateTemplateDto extends PartialType(CreateTemplateDto) { }
 
 export class TemplateResponseDto {
   id: string;
   name: string;
   title: string;
   body: string;
+  paymentLink: string;
   recurringDuration: number;
   durationUnit: DurationUnit;
   notificationMethod: NotificationMethod;

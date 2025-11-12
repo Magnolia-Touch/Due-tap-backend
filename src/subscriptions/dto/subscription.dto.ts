@@ -1,4 +1,4 @@
-import { IsNotEmpty, IsString, IsNumber, IsEnum, IsOptional, IsDateString, IsUUID, Min } from 'class-validator';
+import { IsNotEmpty, IsString, IsNumber, IsEnum, IsOptional, IsDateString, IsUUID, Min, IsArray, ArrayNotEmpty, IsInt } from 'class-validator';
 import { Transform } from 'class-transformer';
 import { ApiProperty, PartialType } from '@nestjs/swagger';
 import { SubscriptionStatus } from '@prisma/client';
@@ -39,15 +39,17 @@ export class CreateSubscriptionDto {
   endDate?: string;
 
   @ApiProperty({ description: 'Custom overrides for template settings', required: false })
-  @IsOptional()
-  customOverrides?: any;
+  @IsArray()
+  @ArrayNotEmpty()
+  @IsInt({ each: true })
+  customOverrides: number[];
 }
 
 export class UpdateSubscriptionDto extends PartialType(CreateSubscriptionDto) {
-  @ApiProperty({ 
+  @ApiProperty({
     description: 'Subscription status',
     enum: SubscriptionStatus,
-    required: false 
+    required: false
   })
   @IsOptional()
   @IsEnum(SubscriptionStatus)

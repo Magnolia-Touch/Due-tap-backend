@@ -33,12 +33,12 @@ export class SettingsController {
   constructor(
     private readonly settingsService: SettingsService,
     private readonly clientsService: ClientsService,
-  ) {}
+  ) { }
 
   @Get()
   @ApiOperation({ summary: 'Get client settings' })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiResponse({
+    status: 200,
     description: 'Settings retrieved successfully',
     type: SettingsResponseDto,
   })
@@ -49,8 +49,8 @@ export class SettingsController {
 
   @Put()
   @ApiOperation({ summary: 'Update client settings' })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiResponse({
+    status: 200,
     description: 'Settings updated successfully',
     type: SettingsResponseDto,
   })

@@ -2,8 +2,9 @@ import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { SettingsService } from '../settings/settings.service';
 import { WhatsAppService } from './whatsapp.service';
-import { EmailService } from './email.service';
 import { NotificationMethod } from '@prisma/client';
+import { EmailService } from './email.service';
+import { MailerService } from '@nestjs-modules/mailer';
 
 export interface NotificationResult {
   success: boolean;
@@ -20,7 +21,13 @@ export interface PaymentNotificationData {
   amount: number;
   dueDate: Date;
   templateId: string;
+  templateName: string
+  templateTitle: string
+  templateBody: string
+  paymentLink: string
+
 }
+
 
 @Injectable()
 export class NotificationsService {
@@ -31,7 +38,8 @@ export class NotificationsService {
     private readonly settingsService: SettingsService,
     private readonly whatsappService: WhatsAppService,
     private readonly emailService: EmailService,
-  ) {}
+    private readonly mail: MailerService
+  ) { }
 
   /**
    * Send payment reminder notification
@@ -43,11 +51,10 @@ export class NotificationsService {
     const results: NotificationResult[] = [];
 
     try {
-      // Get payment details with related data
+      // 🔹 Get payment details
       const payment = await this.prisma.payment.findUnique({
         where: { id: paymentData.paymentId },
         include: {
-          endUser: true,
           subscription: {
             include: {
               template: true,
@@ -65,14 +72,23 @@ export class NotificationsService {
         throw new BadRequestException('Payment not found');
       }
 
-      const { endUser, subscription, client } = payment;
-      const template = subscription.template;
-      const businessName = client.businessName;
+      // 🔹 Fetch End User separately (ensures latest data)
+      const endUser = await this.prisma.endUser.findUnique({
+        where: { id: payment.endUserId },
+      });
 
-      // Check notification method from template
+      if (!endUser) {
+        throw new BadRequestException('End user not found');
+      }
+
+      const { subscription, client } = payment;
+      const template = subscription.template;
+      const businessName = client.businessName || 'Your Company';
+
+      // Determine notification method
       const notificationMethod = template.notificationMethod;
 
-      // Send WhatsApp notification
+      // 🔸 Send WhatsApp notification
       if (notificationMethod === NotificationMethod.WHATSAPP || notificationMethod === NotificationMethod.BOTH) {
         if (endUser.phone) {
           const whatsappResult = await this.sendWhatsAppNotification(
@@ -97,22 +113,23 @@ export class NotificationsService {
         }
       }
 
-      // Send Email notification
+      // 🔸 Send Email notification
       if (notificationMethod === NotificationMethod.EMAIL || notificationMethod === NotificationMethod.BOTH) {
         if (endUser.email) {
-          const emailResult = await this.sendEmailNotification(
-            paymentData.clientId,
-            endUser,
-            {
-              amount: Number(payment.amount),
-              dueDate: payment.dueDate,
-              id: payment.id,
+          await this.mail.sendMail({
+            from: `"Duetap" <${process.env.SMTP_USER}>`,
+            to: endUser.email,
+            subject: paymentData.templateTitle, // ✅ Use subject from Task model
+            template: "email-notification", // ✅ Your Pug template name
+            context: {
+              name: endUser.name,                            // From end user
+              amount: Number(paymentData.amount).toFixed(2),        // From paymentData model
+              dueDate: paymentData.dueDate.toISOString().split('T')[0], // Nicely formatted date
+              paymentLink: paymentData.paymentLink || null,         // Optional
+              templateName: paymentData.templateName,
+              templateBody: paymentData.templateBody,               // Full dynamic body text
             },
-            template,
-            businessName,
-            paymentLink,
-          );
-          results.push(emailResult);
+          });
         } else {
           results.push({
             success: false,
@@ -120,9 +137,10 @@ export class NotificationsService {
             error: 'End user email address not available',
           });
         }
+
       }
 
-      // Log notification attempts
+      // 🔹 Log notification results
       await this.logNotificationAttempts(paymentData, results);
 
       return results;
@@ -159,7 +177,7 @@ export class NotificationsService {
             { name: endUser.name, email: endUser.email },
             client.businessName,
           );
-          
+
           results.push({
             success: emailResult.success,
             method: 'email',
@@ -220,7 +238,7 @@ export class NotificationsService {
             },
             client.businessName,
           );
-          
+
           results.push({
             success: emailResult.success,
             method: 'email',
@@ -235,7 +253,6 @@ export class NotificationsService {
           });
         }
       }
-
       return results;
     } catch (error) {
       this.logger.error('Failed to send payment confirmation:', error.message);
@@ -267,7 +284,7 @@ export class NotificationsService {
           recipient,
           `Hello! This is a test message from ${client.businessName} using Due-Tap notification system. Your WhatsApp integration is working correctly! ✅`,
         );
-        
+
         return {
           success: result.success,
           method: 'whatsapp',
@@ -294,7 +311,7 @@ export class NotificationsService {
             text: `Hello!\n\nThis is a test email from ${client.businessName} using the Due-Tap notification system.\n\nYour email integration is working correctly!\n\nSent via Due-Tap Payment Reminder System`,
           },
         );
-        
+
         return {
           success: result.success,
           method: 'email',
@@ -333,7 +350,7 @@ export class NotificationsService {
         businessName,
         paymentLink,
       );
-      
+
       return {
         success: result.success,
         method: 'whatsapp',
@@ -349,39 +366,39 @@ export class NotificationsService {
     }
   }
 
-  private async sendEmailNotification(
-    clientId: string,
-    endUser: any,
-    payment: any,
-    template: any,
-    businessName: string,
-    paymentLink?: string,
-  ): Promise<NotificationResult> {
-    try {
-      const emailConfig = await this.settingsService.getDecryptedEmailSettings(clientId);
-      const result = await this.emailService.sendPaymentReminder(
-        emailConfig,
-        { name: endUser.name, email: endUser.email },
-        payment,
-        template,
-        businessName,
-        paymentLink,
-      );
-      
-      return {
-        success: result.success,
-        method: 'email',
-        messageId: result.messageId,
-        error: result.error,
-      };
-    } catch (error) {
-      return {
-        success: false,
-        method: 'email',
-        error: error.message,
-      };
-    }
-  }
+  // private async sendEmailNotification(
+  //   clientId: string,
+  //   endUser: any,
+  //   payment: any,
+  //   template: any,
+  //   businessName: string,
+  //   paymentLink?: string,
+  // ): Promise<NotificationResult> {
+  //   try {
+  //     const emailConfig = await this.settingsService.getDecryptedEmailSettings(clientId);
+  //     const result = await this.emailService.sendEmail(
+  //       emailConfig,
+  //       { name: endUser.name, email: endUser.email },
+  //       payment,
+  //       template,
+  //       businessName,
+  //       paymentLink,
+  //     );
+
+  //     return {
+  //       success: result.success,
+  //       method: 'email',
+  //       messageId: result.messageId,
+  //       error: result.error,
+  //     };
+  //   } catch (error) {
+  //     return {
+  //       success: false,
+  //       method: 'email',
+  //       error: error.message,
+  //     };
+  //   }
+  // }
 
   private async logNotificationAttempts(
     paymentData: PaymentNotificationData,

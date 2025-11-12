@@ -73,29 +73,31 @@ model User {
   updatedAt      DateTime   @updatedAt @map("updated_at")
 
   // If user is a client, they have a client profile
-  client   Client?   @relation("ClientUser")
-  UserOtp  UserOtp[]
+  client  Client?   @relation("ClientUser")
+  UserOtp UserOtp[]
 
   @@map("users")
 }
 
 // Client (Business Owner) - has their own users and manages subscriptions
 model Client {
-  id          String       @id @default(uuid()) @map("id")
-  userId      String       @unique @map("user_id")
-  businessName String      @map("business_name")
-  description String?      @map("description")
-  status      ClientStatus @default(active) @map("status")
-  createdAt   DateTime     @default(now()) @map("created_at")
-  updatedAt   DateTime     @updatedAt @map("updated_at")
+  id           String       @id @default(uuid()) @map("id")
+  userId       String       @unique @map("user_id")
+  businessName String       @map("business_name")
+  description  String?      @map("description")
+  status       ClientStatus @default(active) @map("status")
+  createdAt    DateTime     @default(now()) @map("created_at")
+  updatedAt    DateTime     @updatedAt @map("updated_at")
 
   // Relations
-  user          User           @relation("ClientUser", fields: [userId], references: [id], onDelete: Cascade)
-  endUsers      EndUser[]
-  templates     Template[]
-  subscriptions Subscription[]
-  payments      Payment[]
-  settings      ClientSettings?
+  user               User                @relation("ClientUser", fields: [userId], references: [id], onDelete: Cascade)
+  endUsers           EndUser[]
+  templates          Template[]
+  subscriptions      Subscription[]
+  payments           Payment[]
+  settings           ClientSettings?
+  RazorpayConnection RazorpayConnection?
+  StripeConnection   StripeConnection?
 
   @@map("clients")
 }
@@ -124,19 +126,20 @@ model EndUser {
 
 // Message templates for payment reminders
 model Template {
-  id                 String             @id @default(uuid()) @map("id")
-  clientId           String             @map("client_id")
-  name               String             @map("name")
-  title              String             @map("title")
-  body               String             @map("body") @db.Text
-  recurringDuration  Int                @map("recurring_duration")
-  durationUnit       DurationUnit       @map("duration_unit")
-  notificationMethod NotificationMethod @map("notification_method")
-  paymentMethod      PaymentMethod      @map("payment_method")
-  defaultAmount      Decimal?           @map("default_amount") @db.Decimal(10, 2)
-  isActive           Boolean            @default(true) @map("is_active")
-  createdAt          DateTime           @default(now()) @map("created_at")
-  updatedAt          DateTime           @updatedAt @map("updated_at")
+  id                 String              @id @default(uuid()) @map("id")
+  clientId           String              @map("client_id")
+  name               String              @map("name")
+  title              String              @map("title")
+  body               String              @map("body") @db.Text
+  recurringDuration  Int                 @map("recurring_duration")
+  durationUnit       DurationUnit        @map("duration_unit")
+  notificationMethod NotificationMethod? @map("notification_method")
+  paymentLink        String?
+  paymentMethod      PaymentMethod?      @map("payment_method")
+  defaultAmount      Decimal?            @map("default_amount") @db.Decimal(10, 2)
+  isActive           Boolean             @default(true) @map("is_active")
+  createdAt          DateTime            @default(now()) @map("created_at")
+  updatedAt          DateTime            @updatedAt @map("updated_at")
 
   // Relations
   client        Client         @relation(fields: [clientId], references: [id], onDelete: Cascade)
@@ -147,71 +150,75 @@ model Template {
 
 // Recurring payment subscriptions
 model Subscription {
-  id             String             @id @default(uuid()) @map("id")
-  clientId       String             @map("client_id")
-  endUserId      String             @map("end_user_id")
-  templateId     String             @map("template_id")
-  amount         Decimal            @map("amount") @db.Decimal(10, 2)
-  status         SubscriptionStatus @default(ACTIVE) @map("status")
-  nextDueDate    DateTime           @map("next_due_date")
-  lastPaidDate   DateTime?          @map("last_paid_date")
-  startDate      DateTime           @default(now()) @map("start_date")
-  endDate        DateTime?          @map("end_date")
-  customOverrides Json?             @map("custom_overrides") // For custom amount, duration overrides
-  createdAt      DateTime           @default(now()) @map("created_at")
-  updatedAt      DateTime           @updatedAt @map("updated_at")
+  id              String             @id @default(uuid()) @map("id")
+  clientId        String             @map("client_id")
+  endUserId       String             @map("end_user_id")
+  templateId      String             @map("template_id")
+  amount          Decimal            @map("amount") @db.Decimal(10, 2)
+  status          SubscriptionStatus @default(ACTIVE) @map("status")
+  nextDueDate     DateTime           @map("next_due_date")
+  lastPaidDate    DateTime?          @map("last_paid_date")
+  startDate       DateTime           @default(now()) @map("start_date")
+  endDate         DateTime?          @map("end_date")
+  customOverrides Json?              @map("custom_overrides") // For custom amount, duration overrides
+  createdAt       DateTime           @default(now()) @map("created_at")
+  updatedAt       DateTime           @updatedAt @map("updated_at")
 
   // Relations
   client   Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
   endUser  EndUser   @relation(fields: [endUserId], references: [id], onDelete: Cascade)
   template Template  @relation(fields: [templateId], references: [id])
   payments Payment[]
+  tasks    Task[]
 
   @@map("subscriptions")
 }
 
 // Individual payment records
 model Payment {
-  id             String        @id @default(uuid()) @map("id")
-  clientId       String        @map("client_id")
-  endUserId      String        @map("end_user_id")
-  subscriptionId String        @map("subscription_id")
-  amount         Decimal       @map("amount") @db.Decimal(10, 2)
-  status         PaymentStatus @default(PENDING) @map("status")
-  dueDate        DateTime      @map("due_date")
-  paidDate       DateTime?     @map("paid_date")
-  paymentMethod  PaymentMethod @map("payment_method")
-  gatewayPaymentId String?     @map("gateway_payment_id") // Razorpay/Stripe payment ID
-  gatewayResponse Json?        @map("gateway_response")
-  notificationsSent Int        @default(0) @map("notifications_sent")
-  lastNotificationSent DateTime? @map("last_notification_sent")
-  createdAt      DateTime      @default(now()) @map("created_at")
-  updatedAt      DateTime      @updatedAt @map("updated_at")
+  id                   String        @id @default(uuid()) @map("id")
+  clientId             String        @map("client_id")
+  endUserId            String        @map("end_user_id")
+  subscriptionId       String        @map("subscription_id")
+  amount               Decimal       @map("amount") @db.Decimal(10, 2)
+  status               PaymentStatus @default(PENDING) @map("status")
+  dueDate              DateTime      @map("due_date")
+  paidDate             DateTime?     @map("paid_date")
+  paymentMethod        PaymentMethod @map("payment_method")
+  gatewayPaymentId     String?       @map("gateway_payment_id") // Razorpay/Stripe payment ID
+  gatewayResponse      Json?         @map("gateway_response")
+  notificationsSent    Int           @default(0) @map("notifications_sent")
+  lastNotificationSent DateTime?     @map("last_notification_sent")
+  createdAt            DateTime      @default(now()) @map("created_at")
+  updatedAt            DateTime      @updatedAt @map("updated_at")
+  razorpayLinkId       String?       @unique
+  stripedLinkId        String?       @unique
 
   // Relations
   client       Client       @relation(fields: [clientId], references: [id], onDelete: Cascade)
   endUser      EndUser      @relation(fields: [endUserId], references: [id], onDelete: Cascade)
   subscription Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  Task         Task[]
 
   @@map("payments")
 }
 
 // Client settings for API keys and configurations
 model ClientSettings {
-  id                    String  @id @default(uuid()) @map("id")
-  clientId              String  @unique @map("client_id")
-  whatsappApiKey        String? @map("whatsapp_api_key") // Encrypted
-  whatsappBusinessPhone String? @map("whatsapp_business_phone")
-  emailSmtpHost         String? @map("email_smtp_host")
-  emailSmtpPort         Int?    @map("email_smtp_port")
-  emailSmtpUser         String? @map("email_smtp_user")
-  emailSmtpPassword     String? @map("email_smtp_password") // Encrypted
-  emailFromAddress      String? @map("email_from_address")
-  razorpayKeyId         String? @map("razorpay_key_id")
-  razorpayKeySecret     String? @map("razorpay_key_secret") // Encrypted
-  stripePublishableKey  String? @map("stripe_publishable_key")
-  stripeSecretKey       String? @map("stripe_secret_key") // Encrypted
-  webhookSecret         String? @map("webhook_secret") // Encrypted
+  id                    String   @id @default(uuid()) @map("id")
+  clientId              String   @unique @map("client_id")
+  whatsappApiKey        String?  @map("whatsapp_api_key") // Encrypted
+  whatsappBusinessPhone String?  @map("whatsapp_business_phone")
+  emailSmtpHost         String?  @map("email_smtp_host")
+  emailSmtpPort         Int?     @map("email_smtp_port")
+  emailSmtpUser         String?  @map("email_smtp_user")
+  emailSmtpPassword     String?  @map("email_smtp_password") // Encrypted
+  emailFromAddress      String?  @map("email_from_address")
+  razorpayKeyId         String?  @map("razorpay_key_id")
+  razorpayKeySecret     String?  @map("razorpay_key_secret") // Encrypted
+  stripePublishableKey  String?  @map("stripe_publishable_key")
+  stripeSecretKey       String?  @map("stripe_secret_key") // Encrypted
+  webhookSecret         String?  @map("webhook_secret") // Encrypted
   createdAt             DateTime @default(now()) @map("created_at")
   updatedAt             DateTime @updatedAt @map("updated_at")
 
@@ -223,17 +230,17 @@ model ClientSettings {
 
 // Notification logs
 model NotificationLog {
-  id            String             @id @default(uuid()) @map("id")
-  clientId      String             @map("client_id")
-  endUserId     String             @map("end_user_id")
-  paymentId     String?            @map("payment_id")
-  method        NotificationMethod @map("method")
-  recipient     String             @map("recipient") // Email or phone number
-  subject       String?            @map("subject")
-  content       String             @map("content") @db.Text
-  status        String             @map("status") // sent, failed, delivered
-  errorMessage  String?            @map("error_message")
-  sentAt        DateTime           @default(now()) @map("sent_at")
+  id           String             @id @default(uuid()) @map("id")
+  clientId     String             @map("client_id")
+  endUserId    String             @map("end_user_id")
+  paymentId    String?            @map("payment_id")
+  method       NotificationMethod @map("method")
+  recipient    String             @map("recipient") // Email or phone number
+  subject      String?            @map("subject")
+  content      String             @map("content") @db.Text
+  status       String             @map("status") // sent, failed, delivered
+  errorMessage String?            @map("error_message")
+  sentAt       DateTime           @default(now()) @map("sent_at")
 
   @@map("notification_logs")
 }
@@ -249,4 +256,63 @@ model UserOtp {
   user User @relation(fields: [userId], references: [id])
 
   @@index([userId])
+}
+
+model Task {
+  id                 String              @id @default(uuid()) @map("id")
+  clientId           String              @map("client_id")
+  endUserId          String              @map("end_user_id")
+  templateId         String              @map("template_id")
+  templateName       String              @map("template_name")
+  templateTitle      String              @map("template_title")
+  templateBody       String              @map("template_body") @db.Text
+  paymentLink        String?
+  notificationDate   DateTime            @map("notification_date")
+  isSent             Boolean             @default(false) @map("is_sent")
+  notificationMethod NotificationMethod? @map("notification_method")
+  paymentMethod      PaymentMethod?      @map("payment_method")
+  subscriptionId     String              @map("subscription_id")
+  paymentId          String?             @map("payment_id") // ✅ optional foreign key
+  dueDate            DateTime            @map("due_date")
+  paidDate           DateTime?           @map("paid_date")
+  amount             Decimal             @db.Decimal(10, 2)
+
+  // Relations
+  subscription Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  payment      Payment?     @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+
+  @@map("tasks")
+}
+
+model RazorpayConnection {
+  id           String    @id @default(uuid()) @map("id")
+  clientId     String    @unique @map("client_id")
+  merchantId   String?   @map("merchant_id")
+  accessToken  String?   @map("access_token")
+  refreshToken String?   @map("refresh_token")
+  expiresAt    DateTime? @map("expires_at")
+  revoked      Boolean   @default(false) @map("revoked")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@map("razorpay_connections")
+}
+
+model StripeConnection {
+  id           String    @id @default(uuid()) @map("id")
+  clientId     String    @unique @map("client_id")
+  accountId    String?   @map("account_id") // Stripe connected account ID (like acct_1234)
+  accessToken  String?   @map("access_token")
+  refreshToken String?   @map("refresh_token")
+  scope        String?   @map("scope")
+  livemode     Boolean?  @map("livemode")
+  expiresAt    DateTime? @map("expires_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@map("stripe_connections")
 }

@@ -10,6 +10,7 @@ import { UsersService } from '../users/users.service';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import * as bcrypt from 'bcrypt';
+import { UserRole } from '@prisma/client';
 
 @Injectable()
 export class AuthService {
@@ -17,12 +18,15 @@ export class AuthService {
     private readonly prisma: PrismaService,
     private readonly usersService: UsersService,
     private readonly jwtService: JwtService,
-  ) {}
+  ) { }
 
   async validateUser(email: string, password: string): Promise<any> {
     const user = await this.prisma.user.findUnique({
       where: { email },
     });
+    if (user.role == UserRole.END_USER) {
+      throw new Error("No Need to login")
+    }
 
     if (!user) return null;
 
@@ -45,16 +49,13 @@ export class AuthService {
 
   async register(registerDto: RegisterDto) {
     const { email } = registerDto;
-
     const existingUser = await this.prisma.user.findUnique({
       where: { email },
     });
     if (existingUser) {
       throw new ConflictException('Email already in use');
     }
-
-    const user = await this.usersService.create({ ...registerDto });
-
+    const user = await this.usersService.create({ ...registerDto, role: UserRole.SUPER_ADMIN });
     if (registerDto.password) {
       return this.generateToken(user);
     } else {

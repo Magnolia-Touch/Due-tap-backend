@@ -33,12 +33,12 @@ export class TemplatesController {
   constructor(
     private readonly templatesService: TemplatesService,
     private readonly clientsService: ClientsService,
-  ) {}
+  ) { }
 
   @Get()
   @ApiOperation({ summary: 'Get all templates for client' })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiResponse({
+    status: 200,
     description: 'Templates retrieved successfully',
     type: [TemplateResponseDto],
   })
@@ -49,8 +49,8 @@ export class TemplatesController {
 
   @Get(':id')
   @ApiOperation({ summary: 'Get template by ID' })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiResponse({
+    status: 200,
     description: 'Template retrieved successfully',
     type: TemplateResponseDto,
   })
@@ -61,8 +61,8 @@ export class TemplatesController {
 
   @Post()
   @ApiOperation({ summary: 'Create a new template' })
-  @ApiResponse({ 
-    status: 201, 
+  @ApiResponse({
+    status: 201,
     description: 'Template created successfully',
     type: TemplateResponseDto,
   })
@@ -76,8 +76,8 @@ export class TemplatesController {
 
   @Put(':id')
   @ApiOperation({ summary: 'Update a template' })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiResponse({
+    status: 200,
     description: 'Template updated successfully',
     type: TemplateResponseDto,
   })

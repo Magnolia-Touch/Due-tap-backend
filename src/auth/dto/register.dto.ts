@@ -5,7 +5,9 @@ import {
   IsOptional,
   MinLength,
   IsEnum,
+  IsIn,
 } from 'class-validator';
+import { UserRole } from '@prisma/client';
 
 export class RegisterDto {
   @IsString()
@@ -25,7 +27,5 @@ export class RegisterDto {
   @IsOptional()
   phone?: string;
 
-  @IsString()
-  @IsNotEmpty()
-  role: string;
+
 }

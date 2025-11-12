@@ -2,6 +2,7 @@ import { Injectable, BadRequestException, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as nodemailer from 'nodemailer';
 import { TemplateProcessorUtil, TemplateVariables } from '../common/utils/template-processor.util';
+import { MailerService } from '@nestjs-modules/mailer';
 
 export interface EmailConfig {
   host: string;
@@ -31,7 +32,7 @@ export class EmailService {
   constructor(
     private readonly configService: ConfigService,
     private readonly templateProcessor: TemplateProcessorUtil,
-  ) {}
+  ) { }
 
   /**
    * Send a plain text email
@@ -42,7 +43,7 @@ export class EmailService {
   ): Promise<{ success: boolean; messageId?: string; error?: string }> {
     try {
       const transporter = this.createTransporter(config);
-      
+
       const mailOptions = {
         from: config.fromAddress,
         to: message.to,
@@ -53,9 +54,9 @@ export class EmailService {
       };
 
       const info = await transporter.sendMail(mailOptions);
-      
+
       this.logger.log(`Email sent successfully to ${message.to}, messageId: ${info.messageId}`);
-      
+
       return {
         success: true,
         messageId: info.messageId,
@@ -63,7 +64,7 @@ export class EmailService {
 
     } catch (error) {
       this.logger.error(`Email failed for ${message.to}:`, error.message);
-      
+
       return {
         success: false,
         error: error.message,
@@ -86,7 +87,7 @@ export class EmailService {
       // Process template with variables
       const processedContent = this.templateProcessor.processTemplate(templateContent, variables);
       const processedSubject = this.templateProcessor.processTemplate(subject, variables);
-      
+
       const message: EmailMessage = {
         to,
         subject: processedSubject,
@@ -97,11 +98,11 @@ export class EmailService {
       if (isHtml) {
         message.text = this.convertHtmlToText(processedContent);
       }
-      
+
       return await this.sendEmail(config, message);
     } catch (error) {
       this.logger.error(`Template email failed for ${to}:`, error.message);
-      
+
       return {
         success: false,
         error: error.message,
@@ -138,7 +139,7 @@ export class EmailService {
 
     // Create HTML version of the email
     const htmlTemplate = this.createPaymentReminderHtml(template.body, variables);
-    
+
     return await this.sendTemplateEmail(
       config,
       endUser.email,
@@ -288,7 +289,7 @@ export class EmailService {
    */
   private createPaymentReminderHtml(templateBody: string, variables: TemplateVariables): string {
     const processedBody = this.templateProcessor.processTemplate(templateBody, variables);
-    
+
     return `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
         <div style="background-color: #007bff; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0;">

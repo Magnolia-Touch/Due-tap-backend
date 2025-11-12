@@ -1,0 +1,14 @@
+
+super admin register
+client register
+client can add end user
+client can create template and subscription for end user.
+
+
+setting razorpay oauth for client side so that they can generate payment links for users. 
+after payment is done, change payment status to paid and remove the tasks with that payment id
+also adjust scheduler to identifie task that have is_active to true. 
+
+on hold 
+adding meta account. 
+

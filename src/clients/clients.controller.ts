@@ -16,7 +16,6 @@ import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { UserRole } from '../common/enums/user-roles.enum';
-import { PaginationDto } from '../common/dto/pagination.dto';
 import { ClientDashboardStatsDto } from './dto/dashboard.dto';
 
 @ApiTags('Client Dashboard')
@@ -25,16 +24,17 @@ import { ClientDashboardStatsDto } from './dto/dashboard.dto';
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(UserRole.CLIENT)
 export class ClientsController {
-  constructor(private readonly clientsService: ClientsService) {}
+  constructor(private readonly clientsService: ClientsService) { }
 
   @Get('dashboard')
   @ApiOperation({ summary: 'Get Client Dashboard Data' })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiResponse({
+    status: 200,
     description: 'Dashboard data retrieved successfully',
     type: ClientDashboardStatsDto,
   })
   async getDashboard(@Request() req) {
+    console.log("--user", req.user.id)
     const clientId = await this.clientsService.getClientIdFromUser(req.user.id);
     return this.clientsService.getDashboardData(clientId);
   }

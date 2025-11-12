@@ -13,10 +13,11 @@ import {
   SubscriptionQueryDto,
 } from './dto/subscription.dto';
 import { SubscriptionStatus, DurationUnit } from '@prisma/client';
+import { addDays, addWeeks, addMonths, subDays, subWeeks, subMonths, isBefore } from 'date-fns';
 
 @Injectable()
 export class SubscriptionsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) { }
 
   async getSubscriptions(
     clientId: string,
@@ -146,82 +147,147 @@ export class SubscriptionsService {
     };
   }
 
+  private calculateNotificationDate(dueDate: Date, offset: number, unit: DurationUnit): Date {
+    switch (unit) {
+      case DurationUnit.DAYS:
+        return offset < 0 ? subDays(dueDate, Math.abs(offset)) : addDays(dueDate, offset);
+      case DurationUnit.WEEKS:
+        return offset < 0 ? subWeeks(dueDate, Math.abs(offset)) : addWeeks(dueDate, offset);
+      case DurationUnit.MONTHS:
+        return offset < 0 ? subMonths(dueDate, Math.abs(offset)) : addMonths(dueDate, offset);
+      default:
+        throw new Error(`Unsupported duration unit: ${unit}`);
+    }
+  }
+
+  private parseTemplate(template: string, data: Record<string, any>): string {
+    return template.replace(/{{(.*?)}}/g, (_, key) => data[key.trim()] ?? '');
+  }
   async createSubscription(
     clientId: string,
     createSubscriptionDto: CreateSubscriptionDto,
   ): Promise<SubscriptionResponseDto> {
-    const { endUserId, templateId, amount, nextDueDate, startDate, endDate, customOverrides } = createSubscriptionDto;
+    console.log('Received DTO:', createSubscriptionDto);
 
-    // Verify end user belongs to client
-    const endUser = await this.prisma.endUser.findFirst({
-      where: { id: endUserId, clientId },
-    });
-
-    if (!endUser) {
-      throw new NotFoundException('End user not found');
+    const {
+      endUserId,
+      templateId,
+      amount,
+      nextDueDate,
+      startDate,
+      endDate,
+      customOverrides = [],
+    } = createSubscriptionDto;
+    console.log(createSubscriptionDto)
+    // --- Input validation
+    if (!templateId) throw new BadRequestException('templateId is required');
+    if (!endUserId) throw new BadRequestException('endUserId is required');
+    if (!nextDueDate) throw new BadRequestException('nextDueDate is required');
+    if (isNaN(new Date(nextDueDate).getTime())) {
+      throw new BadRequestException('Invalid nextDueDate format');
     }
 
-    // Verify template belongs to client
-    const template = await this.prisma.template.findFirst({
-      where: { id: templateId, clientId },
-    });
+    // --- Run all DB operations atomically
+    const result = await this.prisma.$transaction(async (tx) => {
+      // 1️⃣ Validate EndUser
+      const endUser = await tx.endUser.findFirst({
+        where: { id: endUserId, clientId },
+      });
+      if (!endUser) throw new NotFoundException('End user not found');
 
-    if (!template) {
-      throw new NotFoundException('Template not found');
-    }
+      // 2️⃣ Validate Template
+      const template = await tx.template.findFirst({
+        where: { id: templateId },
+      });
+      if (!template) throw new NotFoundException('Template not found');
+      if (!template.isActive) {
+        throw new BadRequestException(
+          'Cannot create subscription with inactive template',
+        );
+      }
 
-    if (!template.isActive) {
-      throw new BadRequestException('Cannot create subscription with inactive template');
-    }
+      // 3️⃣ Check for existing active subscription
+      const existingSubscription = await tx.subscription.findFirst({
+        where: { endUserId, templateId, status: SubscriptionStatus.ACTIVE },
+      });
+      if (existingSubscription) {
+        throw new BadRequestException('Active subscription already exists');
+      }
 
-    // Check for existing active subscription for this end user and template
-    const existingSubscription = await this.prisma.subscription.findFirst({
-      where: {
-        endUserId,
-        templateId,
-        status: SubscriptionStatus.ACTIVE,
-      },
-    });
-
-    if (existingSubscription) {
-      throw new BadRequestException('Active subscription already exists for this user and template');
-    }
-
-    const subscription = await this.prisma.subscription.create({
-      data: {
-        clientId,
-        endUserId,
-        templateId,
-        amount,
-        nextDueDate: new Date(nextDueDate),
-        startDate: startDate ? new Date(startDate) : new Date(),
-        endDate: endDate ? new Date(endDate) : null,
-        customOverrides: customOverrides || {},
-        status: SubscriptionStatus.ACTIVE,
-      },
-      include: {
-        endUser: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            phone: true,
-          },
+      // 4️⃣ Create subscription
+      const subscription = await tx.subscription.create({
+        data: {
+          clientId,
+          endUserId,
+          templateId,
+          amount,
+          nextDueDate: new Date(nextDueDate),
+          startDate: startDate ? new Date(startDate) : new Date(),
+          endDate: endDate ? new Date(endDate) : null,
+          customOverrides,
+          status: SubscriptionStatus.ACTIVE,
         },
-        template: {
-          select: {
-            id: true,
-            name: true,
-            title: true,
-          },
+        include: {
+          endUser: true,
+          template: true,
         },
-      },
+      });
+
+      // 5️⃣ Create payment record (⚠️ use tx instead of this.prisma)
+      const payment = await this.createPaymentForSubscription(tx, subscription);
+
+      // 6️⃣ Prepare notification tasks
+      const dueDate = new Date(nextDueDate);
+      const tasks = [];
+
+      for (const offset of customOverrides) {
+        const notificationDate = this.calculateNotificationDate(
+          dueDate,
+          offset,
+          template.durationUnit,
+        );
+
+        const isBeforeDue = notificationDate < dueDate;
+
+        const messageTemplate = isBeforeDue
+          ? 'Hi {{name}}, your payment of {{amount}} is due on {{due_date}}.'
+          : 'Hi {{name}}, your payment of {{amount}} is past due on {{due_date}}.';
+
+        const context = {
+          name: endUser.name,
+          amount,
+          due_date: dueDate.toISOString().split('T')[0],
+        };
+
+        tasks.push({
+          clientId,
+          endUserId,
+          templateId: template.id, // ✅ fixed key name
+          templateName: this.parseTemplate(messageTemplate, context),
+          templateTitle: this.parseTemplate(template.title, context),
+          templateBody: this.parseTemplate(template.body, context),
+          paymentLink: template.paymentLink,
+          notificationDate,
+          notificationMethod: template.notificationMethod,
+          paymentMethod: template.paymentMethod,
+          subscriptionId: subscription.id, // ✅ fixed key name
+          paymentId: payment.id,
+          dueDate,
+          amount,
+        });
+
+      }
+
+      // 7️⃣ Save tasks (if any)
+      if (tasks.length > 0) {
+        await tx.task.createMany({ data: tasks });
+      }
+
+      // ✅ Return subscription response
+      return this.mapSubscriptionToResponse(subscription);
     });
 
-    // Create first payment record
-    await this.createPaymentForSubscription(subscription);
-
-    return this.mapSubscriptionToResponse(subscription);
+    return result;
   }
 
   async updateSubscription(
@@ -433,7 +499,7 @@ export class SubscriptionsService {
       },
     });
 
-    return { 
+    return {
       message: 'Payment notification sent successfully',
       paymentId: pendingPayment.id,
       notificationCount: pendingPayment.notificationsSent + 1,
@@ -491,12 +557,15 @@ export class SubscriptionsService {
     return nextDate;
   }
 
-  private async createPaymentForSubscription(subscription: any) {
-    return this.prisma.payment.create({
+  private async createPaymentForSubscription(
+    tx: any, // ideally use: Prisma.TransactionClient
+    subscription: any,
+  ) {
+    return tx.payment.create({
       data: {
         clientId: subscription.clientId,
         endUserId: subscription.endUserId,
-        subscriptionId: subscription.id,
+        subscriptionId: subscription.id, // ✅ correct FK column
         amount: subscription.amount,
         dueDate: subscription.nextDueDate,
         paymentMethod: subscription.template.paymentMethod,
@@ -505,9 +574,9 @@ export class SubscriptionsService {
     });
   }
 
-  // Cron job method to create recurring payments
+  // 🕒 Cron job method to create recurring payments
   async processRecurringPayments() {
-    // This would be called by a scheduled job
+    // Find all active subscriptions whose payment is due today or earlier
     const activeSubscriptions = await this.prisma.subscription.findMany({
       where: {
         status: SubscriptionStatus.ACTIVE,
@@ -520,31 +589,77 @@ export class SubscriptionsService {
       },
     });
 
+    console.log(
+      `🔁 Found ${activeSubscriptions.length} active subscriptions to process.`,
+    );
+
     for (const subscription of activeSubscriptions) {
-      // Check if payment already exists for this due date
-      const existingPayment = await this.prisma.payment.findFirst({
-        where: {
-          subscriptionId: subscription.id,
-          dueDate: subscription.nextDueDate,
-        },
-      });
+      try {
+        // 1️⃣ Check if payment already exists for this due date
+        const existingPayment = await this.prisma.payment.findFirst({
+          where: {
+            subscriptionId: subscription.id,
+            dueDate: subscription.nextDueDate,
+          },
+        });
 
-      if (!existingPayment) {
-        // Create new payment
-        await this.createPaymentForSubscription(subscription);
+        if (existingPayment) {
+          console.log(
+            `⚠️ Payment already exists for subscription ${subscription.id} on ${subscription.nextDueDate}`,
+          );
+          continue;
+        }
 
-        // Update next due date
+        // 2️⃣ Ensure template is valid
+        if (!subscription.template) {
+          console.error(
+            `❌ Missing template for subscription ${subscription.id}. Skipping.`,
+          );
+          continue;
+        }
+
+        // 3️⃣ Create new payment (using helper)
+        const payment = await this.prisma.payment.create({
+          data: {
+            clientId: subscription.clientId,
+            endUserId: subscription.endUserId,
+            subscriptionId: subscription.id,
+            amount: subscription.amount,
+            dueDate: subscription.nextDueDate,
+            paymentMethod: subscription.template.paymentMethod,
+            status: 'PENDING',
+          },
+        });
+
+        console.log(
+          `✅ Created payment ${payment.id} for subscription ${subscription.id}`,
+        );
+
+        // 4️⃣ Calculate next due date for next cycle
         const nextDueDate = this.calculateNextDueDate(
           subscription.nextDueDate,
           subscription.template.recurringDuration,
           subscription.template.durationUnit,
         );
 
+        // 5️⃣ Update subscription with new due date
         await this.prisma.subscription.update({
           where: { id: subscription.id },
           data: { nextDueDate },
         });
+
+        console.log(
+          `🔄 Updated subscription ${subscription.id} → next due date: ${nextDueDate}`,
+        );
+      } catch (error) {
+        console.error(
+          `❌ Error processing subscription ${subscription.id}:`,
+          error.message || error,
+        );
       }
     }
+
+    console.log('✅ Recurring payment processing completed.');
   }
+
 }

@@ -8,7 +8,7 @@ import { ClientDashboardStatsDto } from './dto/dashboard.dto';
 
 @Injectable()
 export class ClientsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) { }
 
   async getClientIdFromUser(userId: string): Promise<string> {
     const client = await this.prisma.client.findFirst({
@@ -23,6 +23,14 @@ export class ClientsService {
   }
 
   async getDashboardData(clientId: string): Promise<ClientDashboardStatsDto> {
+    console.log("000000000000000")
+    const client = await this.prisma.client.findUnique({
+      where: { id: clientId }
+    })
+    if (!client.id) {
+      throw new ForbiddenException("User Not found")
+    }
+    console.log("000000000000000")
     const [
       totalPayments,
       activeUsers,

@@ -33,12 +33,12 @@ export class EndUsersController {
   constructor(
     private readonly endUsersService: EndUsersService,
     private readonly clientsService: ClientsService,
-  ) {}
+  ) { }
 
   @Get()
   @ApiOperation({ summary: 'Get all end users for client' })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiResponse({
+    status: 200,
     description: 'End users retrieved successfully',
     type: [EndUserResponseDto],
   })
@@ -49,8 +49,8 @@ export class EndUsersController {
 
   @Get(':id')
   @ApiOperation({ summary: 'Get end user by ID' })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiResponse({
+    status: 200,
     description: 'End user retrieved successfully',
     type: EndUserResponseDto,
   })
@@ -61,8 +61,8 @@ export class EndUsersController {
 
   @Post()
   @ApiOperation({ summary: 'Create a new end user' })
-  @ApiResponse({ 
-    status: 201, 
+  @ApiResponse({
+    status: 201,
     description: 'End user created successfully',
     type: EndUserResponseDto,
   })
@@ -76,8 +76,8 @@ export class EndUsersController {
 
   @Put(':id')
   @ApiOperation({ summary: 'Update an end user' })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiResponse({
+    status: 200,
     description: 'End user updated successfully',
     type: EndUserResponseDto,
   })

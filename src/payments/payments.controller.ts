@@ -37,15 +37,15 @@ export class PaymentsController {
   constructor(
     private readonly paymentsService: PaymentsService,
     private readonly clientsService: ClientsService,
-  ) {}
+  ) { }
 
   @Get()
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.CLIENT)
   @ApiOperation({ summary: 'Get all payments for client' })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiResponse({
+    status: 200,
     description: 'Payments retrieved successfully',
     type: [PaymentResponseDto],
   })
@@ -59,8 +59,8 @@ export class PaymentsController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.CLIENT)
   @ApiOperation({ summary: 'Get payment by ID' })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiResponse({
+    status: 200,
     description: 'Payment retrieved successfully',
     type: PaymentResponseDto,
   })
@@ -74,8 +74,8 @@ export class PaymentsController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.CLIENT)
   @ApiOperation({ summary: 'Create a new payment' })
-  @ApiResponse({ 
-    status: 201, 
+  @ApiResponse({
+    status: 201,
     description: 'Payment created successfully',
     type: PaymentResponseDto,
   })
@@ -92,8 +92,8 @@ export class PaymentsController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.CLIENT)
   @ApiOperation({ summary: 'Update a payment' })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiResponse({
+    status: 200,
     description: 'Payment updated successfully',
     type: PaymentResponseDto,
   })
