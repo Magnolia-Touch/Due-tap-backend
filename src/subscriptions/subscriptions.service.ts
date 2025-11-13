@@ -12,12 +12,15 @@ import {
   SubscriptionResponseDto,
   SubscriptionQueryDto,
 } from './dto/subscription.dto';
-import { SubscriptionStatus, DurationUnit } from '@prisma/client';
+import { SubscriptionStatus, DurationUnit, PaymentMethod } from '@prisma/client';
 import { addDays, addWeeks, addMonths, subDays, subWeeks, subMonths, isBefore } from 'date-fns';
+import { ClientsService } from 'src/clients/clients.service';
 
 @Injectable()
 export class SubscriptionsService {
-  constructor(private readonly prisma: PrismaService) { }
+  constructor(private readonly prisma: PrismaService,
+    private readonly client: ClientsService
+  ) { }
 
   async getSubscriptions(
     clientId: string,
@@ -233,8 +236,25 @@ export class SubscriptionsService {
         },
       });
 
+      // 🧾 4.1️⃣ Create a Razorpay payment link for this subscription
+      const paymentPayload = {
+        amount: Number(subscription.amount) * 100, // in paise if your amount is already multiplied
+        currency: 'INR',
+        description: `Subscription payment for ${subscription.template.name}`,
+        customer_name: subscription.endUser.name,
+        customer_email: subscription.endUser.email,
+        customer_contact: subscription.endUser.phone || '9999999999', // fallback
+      };
+      let paymentLinkResult;
+      if (template.paymentMethod == PaymentMethod.RAZORPAY) {
+        paymentLinkResult = await this.client.generatePaymentLink(clientId, paymentPayload);
+      }
+      else if (template.paymentMethod == PaymentMethod.STRIPE) {
+        paymentLinkResult = await this.client.generatePaymentLinkForSripe(clientId, paymentPayload);
+      }
+
       // 5️⃣ Create payment record (⚠️ use tx instead of this.prisma)
-      const payment = await this.createPaymentForSubscription(tx, subscription);
+      const payment = await this.createPaymentForSubscription(tx, subscription, paymentLinkResult.link);
 
       // 6️⃣ Prepare notification tasks
       const dueDate = new Date(nextDueDate);
@@ -266,7 +286,7 @@ export class SubscriptionsService {
           templateName: this.parseTemplate(messageTemplate, context),
           templateTitle: this.parseTemplate(template.title, context),
           templateBody: this.parseTemplate(template.body, context),
-          paymentLink: template.paymentLink,
+          paymentLink: paymentLinkResult.link,
           notificationDate,
           notificationMethod: template.notificationMethod,
           paymentMethod: template.paymentMethod,
@@ -560,6 +580,7 @@ export class SubscriptionsService {
   private async createPaymentForSubscription(
     tx: any, // ideally use: Prisma.TransactionClient
     subscription: any,
+    link: string
   ) {
     return tx.payment.create({
       data: {
@@ -570,6 +591,7 @@ export class SubscriptionsService {
         dueDate: subscription.nextDueDate,
         paymentMethod: subscription.template.paymentMethod,
         status: 'PENDING',
+        paymentLink: link
       },
     });
   }

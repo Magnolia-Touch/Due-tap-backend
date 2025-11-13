@@ -1,24 +1,25 @@
-import { randomBytes, createCipheriv, createDecipheriv } from 'crypto';
+// src/common/utils/encryption.util.ts
+import * as crypto from 'crypto';
 
-const KEY = Buffer.from(process.env.ENCRYPTION_MASTER_KEY!, 'base64'); // 32 bytes
+const ALGORITHM = 'aes-256-cbc';
+const SECRET = process.env.ENCRYPTION_SECRET || 'very-strong-secret-key-change-this';
 
-// if (KEY.length !== 32) throw new Error('ENCRYPTION_MASTER_KEY must be 32 bytes (base64)');
+// Generate a 32-byte key from the secret
+const KEY = crypto.createHash('sha256').update(String(SECRET)).digest('base64').substring(0, 32);
 
-export function encrypt(plain: string) {
-    // const iv = randomBytes(12);
-    // const cipher = createCipheriv('aes-256-gcm', KEY, iv);
-    // const encrypted = Buffer.concat([cipher.update(plain, 'utf8'), cipher.final()]);
-    // const tag = cipher.getAuthTag();
-    // return Buffer.concat([iv, tag, encrypted]).toString('base64');
+export function encryptText(text: string): string {
+    const iv = crypto.randomBytes(16);
+    const cipher = crypto.createCipheriv(ALGORITHM, Buffer.from(KEY), iv);
+    let encrypted = cipher.update(text, 'utf8', 'hex');
+    encrypted += cipher.final('hex');
+    return iv.toString('hex') + ':' + encrypted;
 }
 
-export function decrypt(enc: string) {
-    // const data = Buffer.from(enc, 'base64');
-    // const iv = data.slice(0, 12);
-    // const tag = data.slice(12, 28);
-    // const ciphertext = data.slice(28);
-    // const decipher = createDecipheriv('aes-256-gcm', KEY, iv);
-    // decipher.setAuthTag(tag);
-    // const decrypted = Buffer.concat([decipher.update(ciphertext), decipher.final()]);
-    // return decrypted.toString('utf8');
+export function decryptText(encryptedText: string): string {
+    const [ivHex, encrypted] = encryptedText.split(':');
+    const iv = Buffer.from(ivHex, 'hex');
+    const decipher = crypto.createDecipheriv(ALGORITHM, Buffer.from(KEY), iv);
+    let decrypted = decipher.update(encrypted, 'hex', 'utf8');
+    decrypted += decipher.final('utf8');
+    return decrypted;
 }

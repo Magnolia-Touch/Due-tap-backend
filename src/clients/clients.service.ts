@@ -1,10 +1,17 @@
 import {
   Injectable,
   NotFoundException,
+  BadRequestException,
   ForbiddenException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { ClientDashboardStatsDto } from './dto/dashboard.dto';
+import { encryptText, decryptText } from 'src/common/utils/crypto.util';
+const Razorpay = require('razorpay');
+import Stripe from 'stripe';
+
+import { CreatePaymentLinkDto } from './dto/create-payment-link.dto';
+// clients.service.ts
 
 @Injectable()
 export class ClientsService {
@@ -237,5 +244,153 @@ export class ClientsService {
       endUserName: payment.endUser.name,
       paidDate: payment.paidDate,
     }));
+  }
+
+
+
+  async AddPaymentServiceProvidersKeys(user_id: string, keys: {
+    razorpay_key_id?: string;
+    razorpay_key_secret?: string;
+    stripe_key_id?: string;
+    stripe_key_secret?: string;
+  }) {
+    const client = await this.prisma.client.findFirst({
+      where: { userId: user_id },
+    });
+
+    if (!client) {
+      throw new NotFoundException('Client not found for this user');
+    }
+
+    const { razorpay_key_id, razorpay_key_secret, stripe_key_id, stripe_key_secret } = keys;
+
+    if (!razorpay_key_id && !stripe_key_id) {
+      throw new BadRequestException('No payment keys provided');
+    }
+
+    const updateData: any = {};
+
+    if (razorpay_key_id) updateData.razorpay_key_id = encryptText(razorpay_key_id);
+    if (razorpay_key_secret) updateData.razorpay_key_secret = encryptText(razorpay_key_secret);
+    if (stripe_key_id) updateData.stripe_key_id = encryptText(stripe_key_id);
+    if (stripe_key_secret) updateData.stripe_key_secret = encryptText(stripe_key_secret);
+
+    await this.prisma.client.update({
+      where: { id: client.id },
+      data: updateData,
+    });
+
+    return { message: 'Payment provider keys added successfully' };
+  }
+
+  async generatePaymentLink(clientId: string, payload: CreatePaymentLinkDto) {
+    // 1️⃣ Find client and decrypt keys
+    const client = await this.prisma.client.findUnique({
+      where: { id: clientId },
+    });
+
+    if (!client) {
+      throw new NotFoundException('Client not found');
+    }
+
+    if (!client.razorpay_key_id || !client.razorpay_key_secret) {
+      throw new BadRequestException('Razorpay keys not configured for this client');
+    }
+
+    const razorpayKeyId = decryptText(client.razorpay_key_id);
+    const razorpayKeySecret = decryptText(client.razorpay_key_secret);
+
+    // 2️⃣ Create Razorpay instance dynamically
+    const razorpay = new Razorpay({
+      key_id: razorpayKeyId,
+      key_secret: razorpayKeySecret,
+    });
+
+    // 3️⃣ Prepare payment link options
+    const options = {
+      amount: payload.amount,
+      currency: payload.currency,
+      description: payload.description,
+      customer: {
+        name: payload.customer_name,
+        email: payload.customer_email,
+        contact: payload.customer_contact,
+      },
+      notify: {
+        sms: true,
+        email: true,
+      },
+    };
+
+    // 4️⃣ Create payment link via Razorpay SDK
+    const paymentLink = await razorpay.paymentLink.create(options);
+
+    // 6️⃣ Return link to frontend
+    return {
+      message: 'Payment link created successfully',
+      link: paymentLink.short_url,
+      status: paymentLink.status,
+    };
+  }
+
+  async generatePaymentLinkForSripe(clientId: string, payload: CreatePaymentLinkDto) {
+    // 1️⃣ Find client and decrypt Stripe key
+    const client = await this.prisma.client.findUnique({
+      where: { id: clientId },
+    });
+
+    if (!client) {
+      throw new NotFoundException('Client not found');
+    }
+
+    if (!client.stripe_key_secret) {
+      throw new BadRequestException('Stripe key not configured for this client');
+    }
+
+    const stripeSecretKey = decryptText(client.stripe_key_secret);
+
+    // 2️⃣ Initialize Stripe instance
+    const stripe = new Stripe(stripeSecretKey, {
+      apiVersion: '2025-10-29.clover',
+    });
+
+    // 3️⃣ Create product and price (amount already in paise)
+    const product = await stripe.products.create({
+      name: payload.description || 'Payment',
+    });
+
+    const price = await stripe.prices.create({
+      product: product.id,
+      unit_amount: payload.amount, // already in paise
+      currency: payload.currency.toLowerCase(),
+    });
+
+    // 4️⃣ Create Stripe payment link
+    const paymentLink = await stripe.paymentLinks.create({
+      line_items: [
+        {
+          price: price.id,
+          quantity: 1,
+        },
+      ],
+      //need to give payment success url
+      after_completion: {
+        type: 'redirect',
+        redirect: { url: 'https://yourdomain.com/payment-success' }, // customize
+      },
+      metadata: {
+        client_id: clientId,
+        customer_name: payload.customer_name,
+        customer_email: payload.customer_email,
+        customer_contact: payload.customer_contact,
+      },
+    });
+
+    // 5️⃣ Return the payment link to frontend
+    return {
+      message: 'Payment link created successfully',
+      link: paymentLink.url,
+      status: paymentLink.active ? 'active' : 'inactive',
+    };
   }
 }

@@ -18,8 +18,6 @@ import { NotificationsModule } from './notifications/notifications.module';
 import { PugAdapter } from '@nestjs-modules/mailer/dist/adapters/pug.adapter';
 import { join } from 'path';
 import { MailerModule } from '@nestjs-modules/mailer';
-import { RazorpayModule } from './razorpay/razorpay.module';
-import { StripeOauthModule } from './stripe-oauth/stripe-oauth.module';
 import { TasksModule } from './common/tasks/tasks.module';
 
 @Module({
@@ -63,9 +61,7 @@ import { TasksModule } from './common/tasks/tasks.module';
     PaymentsModule,
     EndUsersModule,
     NotificationsModule,
-    TasksModule
-    // RazorpayModule,
-    // StripeOauthModule
+    TasksModule,
   ],
 })
 export class AppModule { }

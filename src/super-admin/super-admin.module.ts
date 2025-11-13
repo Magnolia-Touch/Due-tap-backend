@@ -9,4 +9,4 @@ import { PrismaModule } from '../prisma/prisma.module';
   providers: [SuperAdminService],
   exports: [SuperAdminService],
 })
-export class SuperAdminModule {}
+export class SuperAdminModule { }

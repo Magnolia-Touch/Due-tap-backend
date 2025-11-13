@@ -17,6 +17,7 @@ import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { UserRole } from '../common/enums/user-roles.enum';
 import { ClientDashboardStatsDto } from './dto/dashboard.dto';
+import { CreatePaymentLinkDto } from './dto/create-payment-link.dto';
 
 @ApiTags('Client Dashboard')
 @ApiBearerAuth()
@@ -54,4 +55,28 @@ export class ClientsController {
     const clientId = await this.clientsService.getClientIdFromUser(req.user.id);
     return this.clientsService.updateClientProfile(clientId, updateData);
   }
+
+  // clients.controller.ts
+  @Put('payment-keys')
+  @ApiOperation({ summary: 'Add or update client payment provider keys' })
+  async addPaymentKeys(@Request() req, @Body() keys: any) {
+    const userId = req.user.id;
+    return this.clientsService.AddPaymentServiceProvidersKeys(userId, keys);
+  }
+
+  @Post('payment-link-razrpy')
+  @ApiOperation({ summary: 'Generate Razorpay payment link' })
+  async createPaymentLink(@Request() req, @Body() payload: CreatePaymentLinkDto) {
+    const clientId = await this.clientsService.getClientIdFromUser(req.user.id);
+    return this.clientsService.generatePaymentLink(clientId, payload);
+  }
+
+  @Post('payment-link-stripe')
+  @ApiOperation({ summary: 'Generate Razorpay payment link' })
+  async createPaymentLinkforStripe(@Request() req, @Body() payload: CreatePaymentLinkDto) {
+    const clientId = await this.clientsService.getClientIdFromUser(req.user.id);
+    return this.clientsService.generatePaymentLinkForSripe(clientId, payload);
+  }
+
+
 }

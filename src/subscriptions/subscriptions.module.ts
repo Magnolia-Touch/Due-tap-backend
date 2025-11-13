@@ -4,9 +4,9 @@ import { SubscriptionsService } from './subscriptions.service';
 import { ClientsModule } from 'src/clients/clients.module';
 
 @Module({
-  imports:  [ClientsModule],
+  imports: [ClientsModule],
   controllers: [SubscriptionsController],
   providers: [SubscriptionsService],
   exports: [SubscriptionsService],
 })
-export class SubscriptionsModule {}
+export class SubscriptionsModule { }

@@ -81,23 +81,25 @@ model User {
 
 // Client (Business Owner) - has their own users and manages subscriptions
 model Client {
-  id           String       @id @default(uuid()) @map("id")
-  userId       String       @unique @map("user_id")
-  businessName String       @map("business_name")
-  description  String?      @map("description")
-  status       ClientStatus @default(active) @map("status")
-  createdAt    DateTime     @default(now()) @map("created_at")
-  updatedAt    DateTime     @updatedAt @map("updated_at")
+  id                  String       @id @default(uuid()) @map("id")
+  userId              String       @unique @map("user_id")
+  businessName        String       @map("business_name")
+  description         String?      @map("description")
+  status              ClientStatus @default(active) @map("status")
+  razorpay_key_id     String?
+  razorpay_key_secret String?
+  stripe_key_id       String?
+  stripe_key_secret   String?
+  createdAt           DateTime     @default(now()) @map("created_at")
+  updatedAt           DateTime     @updatedAt @map("updated_at")
 
   // Relations
-  user               User                @relation("ClientUser", fields: [userId], references: [id], onDelete: Cascade)
-  endUsers           EndUser[]
-  templates          Template[]
-  subscriptions      Subscription[]
-  payments           Payment[]
-  settings           ClientSettings?
-  RazorpayConnection RazorpayConnection?
-  StripeConnection   StripeConnection?
+  user          User            @relation("ClientUser", fields: [userId], references: [id], onDelete: Cascade)
+  endUsers      EndUser[]
+  templates     Template[]
+  subscriptions Subscription[]
+  payments      Payment[]
+  settings      ClientSettings?
 
   @@map("clients")
 }
@@ -134,7 +136,6 @@ model Template {
   recurringDuration  Int                 @map("recurring_duration")
   durationUnit       DurationUnit        @map("duration_unit")
   notificationMethod NotificationMethod? @map("notification_method")
-  paymentLink        String?
   paymentMethod      PaymentMethod?      @map("payment_method")
   defaultAmount      Decimal?            @map("default_amount") @db.Decimal(10, 2)
   isActive           Boolean             @default(true) @map("is_active")
@@ -185,14 +186,13 @@ model Payment {
   dueDate              DateTime      @map("due_date")
   paidDate             DateTime?     @map("paid_date")
   paymentMethod        PaymentMethod @map("payment_method")
+  paymentLink          String?
   gatewayPaymentId     String?       @map("gateway_payment_id") // Razorpay/Stripe payment ID
   gatewayResponse      Json?         @map("gateway_response")
   notificationsSent    Int           @default(0) @map("notifications_sent")
   lastNotificationSent DateTime?     @map("last_notification_sent")
   createdAt            DateTime      @default(now()) @map("created_at")
   updatedAt            DateTime      @updatedAt @map("updated_at")
-  razorpayLinkId       String?       @unique
-  stripedLinkId        String?       @unique
 
   // Relations
   client       Client       @relation(fields: [clientId], references: [id], onDelete: Cascade)
@@ -282,37 +282,4 @@ model Task {
   payment      Payment?     @relation(fields: [paymentId], references: [id], onDelete: SetNull)
 
   @@map("tasks")
-}
-
-model RazorpayConnection {
-  id           String    @id @default(uuid()) @map("id")
-  clientId     String    @unique @map("client_id")
-  merchantId   String?   @map("merchant_id")
-  accessToken  String?   @map("access_token")
-  refreshToken String?   @map("refresh_token")
-  expiresAt    DateTime? @map("expires_at")
-  revoked      Boolean   @default(false) @map("revoked")
-  createdAt    DateTime  @default(now()) @map("created_at")
-  updatedAt    DateTime  @updatedAt @map("updated_at")
-
-  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
-
-  @@map("razorpay_connections")
-}
-
-model StripeConnection {
-  id           String    @id @default(uuid()) @map("id")
-  clientId     String    @unique @map("client_id")
-  accountId    String?   @map("account_id") // Stripe connected account ID (like acct_1234)
-  accessToken  String?   @map("access_token")
-  refreshToken String?   @map("refresh_token")
-  scope        String?   @map("scope")
-  livemode     Boolean?  @map("livemode")
-  expiresAt    DateTime? @map("expires_at")
-  createdAt    DateTime  @default(now()) @map("created_at")
-  updatedAt    DateTime  @updatedAt @map("updated_at")
-
-  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
-
-  @@map("stripe_connections")
 }
